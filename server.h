@@ -1,0 +1,76 @@
+#ifndef SERVER_H
+#define SERVER_H
+
+#include <QWidget>
+#include <QTcpServer>
+#include <QTime>
+#include <QTcpSocket>
+#include <vector>
+#include <QVector>
+#include <QMap>
+#include <QThread>
+#include <QDataStream>
+#include <QDebug>
+#include <QNetworkInterface>
+#include <QAbstractSocket>
+
+
+
+namespace Ui {
+class Server;
+}
+
+class Server : public QWidget
+{
+    Q_OBJECT
+
+public:
+    explicit Server(QWidget *parent = 0);
+    ~Server();
+    QTcpServer* myServer;
+
+private:
+    Ui::Server *ui;
+    QTcpSocket* camera;
+    enum COMMAND
+    {
+        DATA = 0x00,
+
+        HELLO_SERVER = 0x1E,
+        HELLO_CLIENT = 0x1A,
+
+        DATA_RECEIVED = 0x2D,
+
+        LENGTH_CHANGE = 0x31,
+        FONE_RESET = 0x3F,
+        COMAND_EXECUTED = 0x3E,
+
+        GB_SERVER = 0x45,
+        GB_CLIENT = 0x4C,
+
+        ERROR = 0x66
+    };
+
+    void sendMsg(QString message);
+
+    bool read(int &var);
+    bool read(char &var);
+
+    int length;
+    int width;
+    int height;
+    char command;
+    QVector<char> data;
+    QString adr;
+    bool flag;
+private slots:
+    void serverStart();
+    void stopServer();
+    void disconnectUser();
+    void readMsg();
+    void sendMsg(COMMAND cmd);
+    void newConnectionUser();
+
+};
+
+#endif // SERVER_H
