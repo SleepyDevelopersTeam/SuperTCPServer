@@ -28,6 +28,10 @@ public:
     explicit Server(QWidget *parent = 0);
     ~Server();
     QTcpServer* myServer;
+    short width;
+    short height;
+    QVector<char> data;
+
 
 private:
     Ui::Server *ui;
@@ -55,14 +59,13 @@ private:
 
     bool read(int &var);
     bool read(char &var);
+    bool read(short &var);
 
     int length;
-    int width;
-    int height;
+
     char command;
-    QVector<char> data;
+
     QString adr;
-    bool flag;
 private slots:
     void serverStart();
     void stopServer();
@@ -70,6 +73,8 @@ private slots:
     void readMsg();
     void sendMsg(COMMAND cmd);
     void newConnectionUser();
+signals:
+    void imageObtained();
 
 };
 

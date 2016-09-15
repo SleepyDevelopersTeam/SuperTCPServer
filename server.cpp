@@ -16,16 +16,17 @@ Server::Server(QWidget *parent) :
 
 
 
-    length=0;
+    length=-1;
     command = -1;
     width = -1;
     height = -1;
-    flag = false;
     foreach (const QHostAddress &address, QNetworkInterface::allAddresses())
     {
         if (address.protocol() == QAbstractSocket::IPv4Protocol && address != QHostAddress(QHostAddress::LocalHost))
-        qDebug() << address.toString();
-        adr=address.toString();
+            //qDebug() << address.toString();
+            adr=address.toString();
+        if(adr[0]=='1' && adr[1]=='9' && adr[2]=='2')
+            break;
     }
 
 }
@@ -39,10 +40,8 @@ Server::~Server()
 
 void Server::serverStart()
 {
-    qDebug()<<"Server start";
-    if(myServer->listen(QHostAddress("192.168.1.199"),9093))
+    if(myServer->listen(QHostAddress(adr),9090))
     {
-        qDebug()<<"Server start";
         QString text=QTime::currentTime().toString()+">>"+"server started in "+ myServer->serverAddress().toString()+"; port: "+ QString::number(myServer->serverPort());
         ui->serverLog->addItem(text);
         ui->start->setEnabled(false);
@@ -78,75 +77,64 @@ void Server::disconnectUser()
 
 void Server::readMsg()
 {
-    QDataStream in(camera);
-    //ready full comand
     if(!read(command)) return;
-
-    qDebug()<<(int)command;
 
     switch(command)
     {
         case HELLO_SERVER:
         {
-            if(!flag)
-            {
-                qDebug()<<"Client connect";
-                sendMsg(HELLO_CLIENT);
-                qDebug()<<"Client connect";
-                flag = true;
-            }
-            qDebug()<<(int)sizeof(int);
-
-            if(camera->bytesAvailable()<(int)sizeof(int))
-            {
-
-                qDebug()<<camera->bytesAvailable();
-                return;
-            }
-            in>>length;
-            qDebug()<<length;
+            sendMsg(HELLO_CLIENT);
+            command=-1;
             break;
         }
         case GB_SERVER:
         {
             sendMsg(GB_CLIENT);
+            command=-1;
+            stopServer();
             break;
         }
         case LENGTH_CHANGE:
         {
             if(!read(length)) return;
+           // qDebug()<<"length "<<length;
             sendMsg(COMAND_EXECUTED);
+            command=-1;
             break;
         }
         case FONE_RESET:
         {
             //reset fone
             sendMsg(COMAND_EXECUTED);
+            command=-1;
             break;
         }
         case ERROR:
         {
             //catch
             stopServer();
+            command=-1;
             break;
         }
         case DATA:
         {
+            data.clear();
             //play video
             int currentSize = 0;
 
             if(!read(width)) return;
             if(!read(height)) return ;
-            qDebug()<<"width:"<<width<<" height "<<height;
-
-            while(currentSize < length)
+            if(camera->bytesAvailable()<length) return;
+            QByteArray arr=camera->readAll();
+            for(int i=0;i<arr.length();++i)
             {
-                int tmp;
-                if(!read(tmp)) continue;
-                data.push_back(tmp);
+                data.push_back(arr[i]);
             }
-
             sendMsg(DATA_RECEIVED);
+            imageObtained();
+            command=-1;
+            width=-1;
+            height=-1;
             break;
         }
    }
@@ -159,16 +147,25 @@ bool Server::read(char &var)
     {
         if (camera->bytesAvailable() < (int)sizeof(char))
             return false;
-         qDebug()<<camera->bytesAvailable();
-        //qint8 tmp;
-        char* tmp;
-        qDebug()<<"lolz";
-        in.device()->reset();
-        in.readRawData(tmp,(int)sizeof(char));
-        qDebug()<<(char)*tmp;
-        //in>>tmp;
-        var=(char)*tmp;
-        qDebug() << "Received command ";
+        qint8 tmp;
+        in>>tmp;
+       // qDebug()<<"command "<<tmp;
+        var=(char)tmp;
+    }
+    return true;
+}
+
+bool Server::read(short &var)
+{
+    QDataStream in(camera);
+    if(var == -1)
+    {
+        if (camera->bytesAvailable() < (int)sizeof(short))
+            return false;
+        qint16 tmp;
+        in>>tmp;
+        //qDebug()<<"command "<<tmp;
+        var=(short)tmp;
     }
     return true;
 }
@@ -180,16 +177,8 @@ bool Server::read(int &var)
     {
         if (camera->bytesAvailable() < (int)sizeof(int))
             return false;
-        qDebug()<<camera->bytesAvailable();
-        //in>>var;
-        char* tmp;
-        qDebug()<<"lolz";
-        in.device()->reset();
-        in.readRawData(tmp,(int)sizeof(int));
-        qDebug()<<(int)*tmp;
-        //in>>tmp;
-        var=(int)*tmp;
-        qDebug() << "Received command ";
+        in>>var;
+      //  qDebug()<<"data: "<<var;
     }
     return true;
 }
@@ -198,6 +187,6 @@ void Server::sendMsg(COMMAND cmd)
 {
     QByteArray msg;
     QDataStream out(&msg, QIODevice::WriteOnly);
-    out<<(char)cmd;
+    out<<(quint8)cmd;
     camera->write(msg);
 }
